@@ -1,64 +1,162 @@
+import streamlit as st
+import pandas as pd
+import math
+
+st.set_page_config(page_title="Bin Packing Problem", page_icon="📦")
+
+st.title("📦 Bin Packing Problem")
+st.write("Compare **First Fit (FF)**, **First Fit Decreasing (FFD)** and **Best Fit Decreasing (BFD)** algorithms.")
+
+# ---------------- First Fit ---------------- #
+
 def first_fit(items, capacity=1.0):
-    bins = []  # Each bin stores remaining space
+
+    bins = []
     bin_contents = []
+
     for item in items:
+
         placed = False
+
         for i, space in enumerate(bins):
+
             if space >= item:
+
                 bins[i] -= item
                 bin_contents[i].append(item)
                 placed = True
                 break
+
         if not placed:
+
             bins.append(capacity - item)
             bin_contents.append([item])
+
     return bin_contents
- 
+
+
+# ---------------- First Fit Decreasing ---------------- #
+
 def first_fit_decreasing(items, capacity=1.0):
+
     return first_fit(sorted(items, reverse=True), capacity)
- 
+
+
+# ---------------- Best Fit Decreasing ---------------- #
+
 def best_fit_decreasing(items, capacity=1.0):
-    sorted_items = sorted(items, reverse=True)
+
+    items = sorted(items, reverse=True)
+
     bins = []
     bin_contents = []
-    for item in sorted_items:
-        best_idx = -1
-        best_space = float('inf')
+
+    for item in items:
+
+        best_index = -1
+        best_space = float("inf")
+
         for i, space in enumerate(bins):
-            if space >= item and space - item < best_space:
+
+            if space >= item and (space - item) < best_space:
+
                 best_space = space - item
-                best_idx = i
-        if best_idx >= 0:
-            bins[best_idx] -= item
-            bin_contents[best_idx].append(item)
+                best_index = i
+
+        if best_index != -1:
+
+            bins[best_index] -= item
+            bin_contents[best_index].append(item)
+
         else:
+
             bins.append(capacity - item)
             bin_contents.append([item])
+
     return bin_contents
- 
-def display_bins(label, bins):
-    print(f'\n{label}: {len(bins)} bins')
-    for i, b in enumerate(bins, 1):
-        used = sum(b)
-        bar = '#' * int(used * 20)
-        print(f'  Bin {i}: {[round(x,1) for x in b]} | Used: {used:.1f} '","
-              f'[{bar:<20}]')
- 
-items = [0.5, 0.7, 0.3, 0.9, 0.2, 0.6, 0.8, 0.4, 0.1, 0.5]
-capacity = 1.0
-lower_bound = -(-sum(items) // capacity)  # Ceiling division
- 
-print(f'Items: {items}')
-print(f'Capacity: {capacity}')
-print(f'Sum of items: {sum(items)}')
-print(f'Lower bound on bins: {int(lower_bound)}')
- 
-ff_bins  = first_fit(items)
-ffd_bins = first_fit_decreasing(items)
-bfd_bins = best_fit_decreasing(items)
- 
-display_bins('First Fit (FF)',           ff_bins)
-display_bins('First Fit Decreasing (FFD)', ffd_bins)
-display_bins('Best Fit Decreasing (BFD)', bfd_bins)
- 
-print(f'\nSummary: Lower Bound={int(lower_bound)}, FF={len(ff_bins)}, FFD={len(ffd_bins)}, BFD={len(bfd_bins)}')
+
+
+# ---------------- Display Function ---------------- #
+
+def display_bins(title, bins):
+
+    st.subheader(f"{title} ({len(bins)} Bins)")
+
+    data = []
+
+    for i, b in enumerate(bins):
+
+        used = round(sum(b), 2)
+        remaining = round(1.0 - used, 2)
+
+        data.append({
+            "Bin": f"Bin {i+1}",
+            "Items": str([round(x,1) for x in b]),
+            "Used Space": used,
+            "Remaining Space": remaining
+        })
+
+    st.table(pd.DataFrame(data))
+
+
+# ---------------- Input ---------------- #
+
+default_items = "0.5,0.7,0.3,0.9,0.2,0.6,0.8,0.4,0.1,0.5"
+
+item_input = st.text_input(
+    "Enter Item Sizes (comma separated)",
+    default_items
+)
+
+capacity = st.number_input(
+    "Bin Capacity",
+    value=1.0,
+    step=0.1
+)
+
+# ---------------- Solve ---------------- #
+
+if st.button("Run Bin Packing"):
+
+    try:
+
+        items = [float(x.strip()) for x in item_input.split(",")]
+
+        lower_bound = math.ceil(sum(items) / capacity)
+
+        st.write("### Input")
+
+        st.write(f"Items : {items}")
+        st.write(f"Capacity : {capacity}")
+        st.write(f"Total Size : {round(sum(items),2)}")
+        st.success(f"Lower Bound on Bins : {lower_bound}")
+
+        ff = first_fit(items, capacity)
+        ffd = first_fit_decreasing(items, capacity)
+        bfd = best_fit_decreasing(items, capacity)
+
+        display_bins("First Fit (FF)", ff)
+        display_bins("First Fit Decreasing (FFD)", ffd)
+        display_bins("Best Fit Decreasing (BFD)", bfd)
+
+        st.subheader("Summary")
+
+        summary = pd.DataFrame({
+            "Algorithm": [
+                "Lower Bound",
+                "First Fit",
+                "First Fit Decreasing",
+                "Best Fit Decreasing"
+            ],
+            "Number of Bins": [
+                lower_bound,
+                len(ff),
+                len(ffd),
+                len(bfd)
+            ]
+        })
+
+        st.table(summary)
+
+    except:
+        st.error("Please enter valid decimal values separated by commas.")
