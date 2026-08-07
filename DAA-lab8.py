@@ -1,38 +1,155 @@
 import streamlit as st
 import pandas as pd
-from itertools import permutations
 
-st.set_page_config(page_title="Travelling Salesman Problem", page_icon="🗺️")
+st.set_page_config(
+    page_title="Travelling Salesman Problem",
+    page_icon="🗺️"
+)
 
 st.title("🗺️ Travelling Salesman Problem (TSP)")
-st.subheader("Brute Force Approach")
+st.subheader("Branch and Bound Approach")
 
 INF = float('inf')
 
-# ------------------ TSP Algorithm ------------------ #
 
-def tsp_brute_force(cost, n):
-    cities = list(range(1, n))
+# ------------------ Branch and Bound TSP Algorithm ------------------
 
-    best_cost = INF
-    best_path = None
+def tsp_branch_and_bound(cost, n):
 
-    for perm in permutations(cities):
-        path = [0] + list(perm) + [0]
+    final_path = [-1] * (n + 1)
+    visited = [False] * n
 
-        total_cost = 0
+    # Start from city 0
+    visited[0] = True
+    current_path = [0]
 
-        for i in range(n):
-            total_cost += cost[path[i]][path[i + 1]]
+    # Find the first minimum edge for a city
+    def first_min(i):
+        minimum = INF
 
-        if total_cost < best_cost:
-            best_cost = total_cost
-            best_path = path
+        for k in range(n):
+            if i != k and cost[i][k] < minimum:
+                minimum = cost[i][k]
 
-    return best_path, best_cost
+        return minimum
+
+    # Find the second minimum edge for a city
+    def second_min(i):
+        first = INF
+        second = INF
+
+        for j in range(n):
+            if i == j:
+                continue
+
+            if cost[i][j] <= first:
+                second = first
+                first = cost[i][j]
+
+            elif cost[i][j] < second:
+                second = cost[i][j]
+
+        return second
+
+    # Initial lower bound
+    initial_bound = 0
+
+    for i in range(n):
+        initial_bound += first_min(i) + second_min(i)
+
+    initial_bound = initial_bound / 2
+
+    best_cost = [INF]
+    best_path = [None]
+
+    # Branch and Bound recursive function
+    def branch_and_bound(current_bound, current_cost, level):
+
+        # If all cities are visited
+        if level == n:
+
+            last_city = current_path[-1]
+
+            # Check if we can return to starting city
+            if cost[last_city][0] != INF:
+
+                total_cost = (
+                    current_cost +
+                    cost[last_city][0]
+                )
+
+                if total_cost < best_cost[0]:
+
+                    best_cost[0] = total_cost
+
+                    best_path[0] = (
+                        current_path.copy() + [0]
+                    )
+
+            return
+
+        # Try every unvisited city
+        for next_city in range(1, n):
+
+            current_city = current_path[-1]
+
+            if (
+                not visited[next_city]
+                and cost[current_city][next_city] != INF
+            ):
+
+                new_cost = (
+                    current_cost +
+                    cost[current_city][next_city]
+                )
+
+                # Calculate new lower bound
+                if level == 1:
+
+                    new_bound = (
+                        current_bound -
+                        (
+                            first_min(current_city)
+                            + first_min(next_city)
+                        ) / 2
+                    )
+
+                else:
+
+                    new_bound = (
+                        current_bound -
+                        (
+                            second_min(current_city)
+                            + first_min(next_city)
+                        ) / 2
+                    )
+
+                # Continue only if promising
+                if new_cost + new_bound < best_cost[0]:
+
+                    visited[next_city] = True
+                    current_path.append(next_city)
+
+                    branch_and_bound(
+                        new_bound,
+                        new_cost,
+                        level + 1
+                    )
+
+                    # Backtracking
+                    current_path.pop()
+                    visited[next_city] = False
+
+    branch_and_bound(
+        initial_bound,
+        0,
+        1
+    )
+
+    return best_path[0], best_cost[0]
 
 
-# ------------------ Cost Matrix ------------------ #
+# ------------------ Cost Matrix ------------------
 
 cities = ["A", "B", "C", "D", "E"]
 
@@ -46,7 +163,8 @@ cost = [
 
 n = len(cost)
 
-# ------------------ Display Matrix ------------------ #
+
+# ------------------ Display Matrix ------------------
 
 st.subheader("Cost Matrix")
 
@@ -57,44 +175,67 @@ for row in cost:
         ["INF" if x == INF else x for x in row]
     )
 
-df = pd.DataFrame(display_matrix, columns=cities, index=cities)
+df = pd.DataFrame(
+    display_matrix,
+    columns=cities,
+    index=cities
+)
 
 st.table(df)
 
-# ------------------ Solve Button ------------------ #
+
+# ------------------ Solve Button ------------------
 
 if st.button("Find Optimal Tour"):
 
-    best_path, best_cost = tsp_brute_force(cost, n)
+    best_path, best_cost = tsp_branch_and_bound(
+        cost,
+        n
+    )
 
-    tour = " → ".join(cities[i] for i in best_path)
+    if best_path is not None:
 
-    st.success(f"Optimal Tour : {tour}")
+        # Convert city numbers to city names
+        tour = " → ".join(
+            cities[i] for i in best_path
+        )
 
-    st.success(f"Minimum Cost : {best_cost}")
+        st.success(
+            f"Optimal Tour : {tour}"
+        )
 
-    st.subheader("Path Verification")
+        st.success(
+            f"Minimum Cost : {best_cost}"
+        )
 
-    verification = []
+        # ------------------ Path Verification ------------------
 
-    total = 0
+        st.subheader("Path Verification")
 
-    for i in range(n):
+        verification = []
 
-        u = best_path[i]
-        v = best_path[i + 1]
+        total = 0
 
-        edge_cost = cost[u][v]
+        for i in range(n):
 
-        total += edge_cost
+            u = best_path[i]
+            v = best_path[i + 1]
 
-        verification.append({
-            "From": cities[u],
-            "To": cities[v],
-            "Cost": edge_cost
-        })
+            edge_cost = cost[u][v]
 
-    st.table(pd.DataFrame(verification))
+            total += edge_cost
 
-    st.info(f"Total Cost = {total}")
+            verification.append({
+                "From": cities[u],
+                "To": cities[v],
+                "Cost": edge_cost
+            })
+
+        st.table(
+            pd.DataFrame(verification)
+        )
+
+        st.info(
+            f"Total Cost = {total}"
+        )
  
